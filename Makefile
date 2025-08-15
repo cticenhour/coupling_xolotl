@@ -13,12 +13,12 @@ ifneq ($(wildcard $(MOOSE_SUBMODULE)/framework/Makefile),)
 else
   MOOSE_DIR        ?= $(shell dirname `pwd`)/moose
 endif
-# Try to use PETSc submodule if PETSC_DIR is not set
-PETSC_DIR          ?=$(MOOSE_DIR)/petsc
-PETSC_ARCH         ?=arch-moose
 
 # Xolotl
 XOLOTL_DIR         ?= $(CURDIR)/xolotl
+
+# Use PETSc within Xolotl if PETSC_DIR not set
+PETSC_DIR         ?= $(XOLOTL_DIR)/build/external/petsc_install
 
 # framework
 FRAMEWORK_DIR      := $(MOOSE_DIR)/framework
@@ -51,7 +51,7 @@ NAVIER_STOKES       := no
 PHASE_FIELD         := yes
 RDG                 := no
 RICHARDS            := no
-SOLID_MECHANICS     := no
+SOLID_MECHANICS     := yes
 STOCHASTIC_TOOLS    := no
 TENSOR_MECHANICS    := no
 XFEM                := no
@@ -62,7 +62,7 @@ include $(MOOSE_DIR)/modules/modules.mk
 # List XOLOTL as a dependency
 # Use ADDITIONAL flags to link XOLOTL
 XOLOTL_DEPEND_LIBS     := $(XOLOTL_DIR)/install/lib/libxolotlInterface.$(lib_suffix)
-# -Wl,-rpath trikcy is used for load XOLOTL properly from executable
+# -Wl,-rpath trick is used for load XOLOTL properly from executable
 ADDITIONAL_LIBS        += -L$(XOLOTL_DIR)/install/lib -Wl,-rpath,$(XOLOTL_DIR)/install/lib -lxolotlInterface
 ADDITIONAL_INCLUDES    += -I$(XOLOTL_DIR)/install/include
 
@@ -86,7 +86,6 @@ $(XOLOTL_DEPEND_LIBS): $(XOLOTL_DIR)/xolotl/solver/src/Solver.cpp
 	cd xolotl; \
 	mkdir build; \
 	cd build; \
-	cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(PETSC_DIR)/$(PETSC_ARCH) \
-	-DBUILD_SHARED_LIBS=yes -DCMAKE_CXX_FLAGS_RELEASE="-O3 -fPIC" -DBUILD_TESTING=OFF \
-	-DCMAKE_INSTALL_PREFIX=$(XOLOTL_DIR)/install ..; \
+	cmake -DXolotl_BUILD_PETSC=ON -DXolotl_BUILD_HYPRE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(XOLOTL_DIR)/install ..; \
+	$(MOOSE_DIR)/moose/scripts/update_and_rebuild_libmesh.sh; \
 	make; make install \
