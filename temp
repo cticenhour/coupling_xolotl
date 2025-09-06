@@ -1,0 +1,1 @@
+conda install bzip2 ca-certificates expat jinja2 ld_impl_linux-64 libffi libgcc-ng libgomp libmpdec libstdcxx-ng libuuid markupsafe ncurses openssl packaging pip python python_abi pyyaml readline setuptools sqlite tk tzdata wheel xz yaml zlib
