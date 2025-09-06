@@ -1,1 +1,9 @@
+FOR HPC SYSTEMS
+- module load gcc mvapich2 cmake
+
 conda install bzip2 ca-certificates expat jinja2 ld_impl_linux-64 libffi libgcc-ng libgomp libmpdec libstdcxx-ng libuuid markupsafe ncurses openssl packaging pip python python_abi pyyaml readline setuptools sqlite tk tzdata wheel xz yaml zlib
+
+BITTERROOT
+- Built Xolotl/PETSc, libMesh and MOOSE base. With moose-tools added to the above,
+  tests run successfully except for those that needs mumps, superLU_dist, and other reqs. of the
+  MOOSE PETSc installation
