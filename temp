@@ -1,3 +1,147 @@
+INSTRUCTIONS FROM SOPHIE
+Here it is (it's more complicated than it will be in the future once we resolve the installation process):
+```
+module load gcc
+module load mvapich2
+module load cmake
+```
+then I have a conda environment with:
+```
+# packages in environment at /home/blonsoph/miniforge/envs/pyEnv:
+#
+# Name                    Version                   Build  Channel
+_libgcc_mutex             0.1                        main
+_openmp_mutex             5.1                       1_gnu
+bzip2                     1.0.8                h5eee18b_6
+ca-certificates           2025.2.25            h06a4308_0
+expat                     2.7.1                h6a678d5_0
+jinja2                    3.1.6           py313h06a4308_0
+ld_impl_linux-64          2.40                 h12ee557_0
+libffi                    3.4.4                h6a678d5_1
+libgcc-ng                 11.2.0               h1234567_1
+libgomp                   11.2.0               h1234567_1
+libmpdec                  4.0.0                h5eee18b_0
+libstdcxx-ng              11.2.0               h1234567_1
+libuuid                   1.41.5               h5eee18b_0
+markupsafe                3.0.2           py313h5eee18b_0
+ncurses                   6.4                  h6a678d5_0
+openssl                   3.0.16               h5eee18b_0
+packaging                 24.2            py313h06a4308_0
+pip                       25.1               pyhc872135_2
+python                    3.13.2          hf623796_100_cp313
+python_abi                3.13                    0_cp313
+pyyaml                    6.0.2           py313h5eee18b_0
+readline                  8.2                  h5eee18b_0
+setuptools                78.1.1          py313h06a4308_0
+sqlite                    3.45.3               h5eee18b_0
+tk                        8.6.14               h39e8969_0
+tzdata                    2025b                h04d1e81_0
+wheel                     0.45.1          py313h06a4308_0
+xz                        5.6.4                h5eee18b_1
+yaml                      0.2.5                h7b6447c_0
+zlib                      1.2.13               h5eee18b_1
+```
+
+Get the coupling code and update it:
+```
+git clone https://github.com/SciDAC-MOOSE-Xolotl-coupling-group/coupling_xolotl.git coupling_xolotl
+cd coupling_xolotl
+git submodule init
+git submodule update
+cd moose
+git checkout devel
+cd ../xolotl
+git checkout stable
+git apply hypre.patch
+```
+with `hypre.patch`:
+```
+diff --git a/CMake/BuildPETSc.cmake b/CMake/BuildPETSc.cmake
+index ad4f75c5..d8511e51 100644
+--- a/CMake/BuildPETSc.cmake
++++ b/CMake/BuildPETSc.cmake
+@@ -43,6 +43,8 @@ option(Xolotl_BUILD_LAPACK "Have the PETSc build system build LAPACK" OFF)
+ if(NOT Xolotl_BUILD_LAPACK)
+     find_package(LAPACK QUIET)
+ endif()
++#### HYPRE
++option(Xolotl_BUILD_HYPRE "Have the PETSc build system build HYPRE" OFF)
+
+ ## Set options
+ set(__script_dir ${CMAKE_SOURCE_DIR}/scripts)
+@@ -122,6 +124,11 @@ if(Xolotl_BUILD_LAPACK)
+     list(APPEND __build_opts --get-lapack)
+     message(STATUS "    - build BLAS/LAPACK")
+ endif()
++#### HYPRE
++if(Xolotl_BUILD_HYPRE)
++    list(APPEND __build_opts --get-hypre)
++    message(STATUS "    - build HYPRE")
++endif()
+
+ ## Perform build
+ set(__output_file "${__external_bin_dir}/petsc_build.out")
+```
+
+Install the missing dependencies (PETSc, boost, HDF5, Kokkos) through the Xolotl cmake process:
+```
+mkdir build
+cd build
+cmake -DXolotl_BUILD_PETSC=ON -DXolotl_BUILD_HYPRE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/projects/NE_SciDAC/LDRD/coupling_xolotl/xolotl/install ../
+export PETSC_DIR=/projects/NE_SciDAC/LDRD/coupling_xolotl/xolotl/build/external/petsc_install
+```
+
+Install libmesh and wasp from MOOSE:
+```
+cd ../../moose
+MOOSE_JOBS=10 ./scripts/update_and_rebuild_libmesh.sh
+./scripts/update_and_rebuild_wasp.sh
+```
+
+Finally, build the coupling code:
+```
+cd ..
+git apply coupling.patch
+make
+```
+with `coupling.patch`:
+```
+diff --git a/Makefile b/Makefile
+index d7e289e..7f801ac 100644
+--- a/Makefile
++++ b/Makefile
+@@ -13,9 +13,6 @@ ifneq ($(wildcard $(MOOSE_SUBMODULE)/framework/Makefile),)
+ else
+   MOOSE_DIR        ?= $(shell dirname `pwd`)/moose
+ endif
+-# Try to use PETSc submodule if PETSC_DIR is not set
+-PETSC_DIR          ?=$(MOOSE_DIR)/petsc
+-PETSC_ARCH         ?=arch-moose
+
+ # Xolotl
+ XOLOTL_DIR         ?= $(CURDIR)/xolotl
+@@ -74,19 +71,3 @@ GEN_REVISION       := no
+ # DEP_APPS           := $(shell $(FRAMEWORK_DIR)/scripts/find_dep_apps.py $(APPLICATION_NAME))
+ include            $(FRAMEWORK_DIR)/app.mk
+
+-###############################################################################
+-# Additional special case targets should be added here
+-
+-$(ADDITIONAL_SRC_DEPS): $(XOLOTL_DEPEND_LIBS)
+-
+-# TODO: should list all source files as a dependency
+-# Then if source codes change, make will try to call "cmake"
+-# "cmake" should build lib with updated source codes
+-$(XOLOTL_DEPEND_LIBS): $(XOLOTL_DIR)/xolotl/solver/src/Solver.cpp
+-       cd xolotl; \
+-       mkdir build; \
+-       cd build; \
+-       cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(PETSC_DIR)/$(PETSC_ARCH) \
+-       -DBUILD_SHARED_LIBS=yes -DCMAKE_CXX_FLAGS_RELEASE="-O3 -fPIC" -DBUILD_TESTING=OFF \
+-       -DCMAKE_INSTALL_PREFIX=$(XOLOTL_DIR)/install ..; \
+-       make; make install \
+```
+
 FOR HPC SYSTEMS
 - module load gcc mvapich2 cmake
 
@@ -7,3 +151,7 @@ BITTERROOT
 - Built Xolotl/PETSc, libMesh and MOOSE base. With moose-tools added to the above,
   tests run successfully except for those that needs mumps, superLU_dist, and other reqs. of the
   MOOSE PETSc installation
+
+ON ROD
+- Had issues with PETSc building its own Boost. So installing from conda-forge
+- conda install moose-mpi mpich moose-tools boost=1.84
