@@ -833,8 +833,8 @@
 [Outputs]
   [./exodus]
     type = Exodus
-    #interval = 10
-    interval = 1
+    #time_step_interval = 10
+    time_step_interval = 1
     sync_times = '0 1.2e8'
     #sync_times = '0 1.2e6'
   [../]
